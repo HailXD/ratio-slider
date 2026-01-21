@@ -114,6 +114,50 @@ body {
   gap: 14px;
 }
 
+.presets {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.presets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.preset-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.preset-button {
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  font-family: "IBM Plex Mono", "Segoe UI", monospace;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.preset-button:hover {
+  border-color: rgba(93, 211, 166, 0.7);
+  transform: translateY(-1px);
+}
+
+.preset-button:active {
+  transform: translateY(0);
+}
+
 .slider-header {
   display: flex;
   align-items: center;

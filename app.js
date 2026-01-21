@@ -13,6 +13,7 @@ const newWidth = document.getElementById("newWidth");
 const newHeight = document.getElementById("newHeight");
 const newPixels = document.getElementById("newPixels");
 const previewBox = document.getElementById("previewBox");
+const presetButtons = document.querySelectorAll(".preset-button");
 
 const numberFormat = new Intl.NumberFormat("en-US");
 
@@ -184,5 +185,17 @@ heightInput.value = DEFAULT_HEIGHT;
 widthInput.addEventListener("input", updateBase);
 heightInput.addEventListener("input", updateBase);
 ratioSlider.addEventListener("input", updateDerived);
+presetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const ratio = Number(button.dataset.ratio);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return;
+    }
+    const minRatio = Number(ratioSlider.min);
+    const maxRatio = Number(ratioSlider.max);
+    ratioSlider.value = clamp(ratio, minRatio, maxRatio).toFixed(6);
+    updateDerived();
+  });
+});
 
 updateBase();
