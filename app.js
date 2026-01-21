@@ -2,7 +2,7 @@ const DEFAULT_WIDTH = 1216;
 const DEFAULT_HEIGHT = 896;
 const RANGE_MULTIPLIER = 4;
 const PREVIEW_SIZE = 220;
-const DIM_STEP = 16;
+const DIM_STEP = 64;
 
 const widthInput = document.getElementById("widthInput");
 const heightInput = document.getElementById("heightInput");
