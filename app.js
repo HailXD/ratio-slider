@@ -26,6 +26,62 @@ const parseDimension = (value) => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const gcd = (a, b) => {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    const temp = y;
+    y = x % y;
+    x = temp;
+  }
+  return x;
+};
+
+const approximateFraction = (value, maxDenominator) => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return { numerator: 0, denominator: 0 };
+  }
+  let bestNumerator = 1;
+  let bestDenominator = 1;
+  let bestError = Math.abs(value - bestNumerator / bestDenominator);
+  let h1 = 1;
+  let h0 = 0;
+  let k1 = 0;
+  let k0 = 1;
+  let x = value;
+  for (let i = 0; i < 25; i += 1) {
+    const a = Math.floor(x);
+    const h2 = a * h1 + h0;
+    const k2 = a * k1 + k0;
+    if (k2 > maxDenominator) {
+      break;
+    }
+    const approximation = h2 / k2;
+    const error = Math.abs(value - approximation);
+    if (error < bestError) {
+      bestError = error;
+      bestNumerator = h2;
+      bestDenominator = k2;
+    }
+    if (Math.abs(x - a) < Number.EPSILON) {
+      break;
+    }
+    x = 1 / (x - a);
+    h0 = h1;
+    h1 = h2;
+    k0 = k1;
+    k1 = k2;
+  }
+  return { numerator: bestNumerator, denominator: bestDenominator };
+};
+
+const formatRatioDisplay = (ratio, numerator, denominator) => {
+  if (ratio <= 0 || numerator <= 0 || denominator <= 0) {
+    return "0";
+  }
+  return `${ratio.toFixed(3)} (${numerator}:${denominator})`;
+};
+
 const updateSliderRange = (ratio, pixels) => {
   if (ratio <= 0 || pixels <= 0) {
     ratioSlider.min = "0";
@@ -86,7 +142,12 @@ const updateDerived = () => {
   const height = parseDimension(heightInput.value);
   const pixels = width > 0 && height > 0 ? width * height : 0;
   const ratio = Number(ratioSlider.value);
-  ratioValue.textContent = ratio > 0 ? ratio.toFixed(3) : "0";
+  const approx = approximateFraction(ratio, 100);
+  ratioValue.textContent = formatRatioDisplay(
+    ratio,
+    approx.numerator,
+    approx.denominator
+  );
   const nextSize = computeNewSize(pixels, ratio);
   newWidth.textContent = numberFormat.format(nextSize.width);
   newHeight.textContent = numberFormat.format(nextSize.height);
@@ -99,8 +160,15 @@ const updateBase = () => {
   const height = parseDimension(heightInput.value);
   const pixels = width > 0 && height > 0 ? width * height : 0;
   const ratio = height > 0 ? width / height : 0;
+  const divisor = width > 0 && height > 0 ? gcd(width, height) : 0;
+  const ratioNumerator = divisor > 0 ? Math.floor(width / divisor) : 0;
+  const ratioDenominator = divisor > 0 ? Math.floor(height / divisor) : 0;
   pixelCount.textContent = numberFormat.format(pixels);
-  baseRatio.textContent = ratio > 0 ? ratio.toFixed(3) : "0";
+  baseRatio.textContent = formatRatioDisplay(
+    ratio,
+    ratioNumerator,
+    ratioDenominator
+  );
   updateSliderRange(ratio, pixels);
   if (!ratioSlider.disabled) {
     const minRatio = Number(ratioSlider.min);
