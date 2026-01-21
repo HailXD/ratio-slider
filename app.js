@@ -2,6 +2,7 @@ const DEFAULT_WIDTH = 1216;
 const DEFAULT_HEIGHT = 896;
 const RANGE_MULTIPLIER = 4;
 const PREVIEW_SIZE = 220;
+const DIM_STEP = 16;
 
 const widthInput = document.getElementById("widthInput");
 const heightInput = document.getElementById("heightInput");
@@ -13,18 +14,21 @@ const newWidth = document.getElementById("newWidth");
 const newHeight = document.getElementById("newHeight");
 const newPixels = document.getElementById("newPixels");
 const previewBox = document.getElementById("previewBox");
+const presetButtons = document.querySelectorAll(".preset-button");
 
 const numberFormat = new Intl.NumberFormat("en-US");
 
 const parseDimension = (value) => {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (!Number.isFinite(parsed) || parsed < DIM_STEP) {
     return 0;
   }
-  return Math.floor(parsed);
+  return Math.floor(parsed / DIM_STEP) * DIM_STEP;
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const floorToStep = (value, step) => Math.floor(value / step) * step;
+const ceilToStep = (value, step) => Math.ceil(value / step) * step;
 
 const gcd = (a, b) => {
   let x = Math.abs(a);
@@ -35,44 +39,6 @@ const gcd = (a, b) => {
     x = temp;
   }
   return x;
-};
-
-const approximateFraction = (value, maxDenominator) => {
-  if (!Number.isFinite(value) || value <= 0) {
-    return { numerator: 0, denominator: 0 };
-  }
-  let bestNumerator = 1;
-  let bestDenominator = 1;
-  let bestError = Math.abs(value - bestNumerator / bestDenominator);
-  let h1 = 1;
-  let h0 = 0;
-  let k1 = 0;
-  let k0 = 1;
-  let x = value;
-  for (let i = 0; i < 25; i += 1) {
-    const a = Math.floor(x);
-    const h2 = a * h1 + h0;
-    const k2 = a * k1 + k0;
-    if (k2 > maxDenominator) {
-      break;
-    }
-    const approximation = h2 / k2;
-    const error = Math.abs(value - approximation);
-    if (error < bestError) {
-      bestError = error;
-      bestNumerator = h2;
-      bestDenominator = k2;
-    }
-    if (Math.abs(x - a) < Number.EPSILON) {
-      break;
-    }
-    x = 1 / (x - a);
-    h0 = h1;
-    h1 = h2;
-    k0 = k1;
-    k1 = k2;
-  }
-  return { numerator: bestNumerator, denominator: bestDenominator };
 };
 
 const formatRatioDisplay = (ratio, numerator, denominator) => {
@@ -103,20 +69,45 @@ const computeNewSize = (pixels, ratio) => {
   if (pixels <= 0 || ratio <= 0) {
     return { width: 0, height: 0, pixels: 0 };
   }
-  let height = Math.floor(Math.sqrt(pixels / ratio));
-  if (height < 1) {
-    height = 1;
+  const idealHeight = Math.sqrt(pixels / ratio);
+  const idealWidth = idealHeight * ratio;
+  const heightUp = Math.max(DIM_STEP, ceilToStep(idealHeight, DIM_STEP));
+  const widthDownFromHeightUp = floorToStep(pixels / heightUp, DIM_STEP);
+  const candidateA =
+    widthDownFromHeightUp >= DIM_STEP
+      ? {
+          width: widthDownFromHeightUp,
+          height: heightUp,
+          pixels: widthDownFromHeightUp * heightUp,
+        }
+      : null;
+  const widthUp = Math.max(DIM_STEP, ceilToStep(idealWidth, DIM_STEP));
+  const heightDownFromWidthUp = floorToStep(pixels / widthUp, DIM_STEP);
+  const candidateB =
+    heightDownFromWidthUp >= DIM_STEP
+      ? {
+          width: widthUp,
+          height: heightDownFromWidthUp,
+          pixels: widthUp * heightDownFromWidthUp,
+        }
+      : null;
+  if (candidateA && candidateB) {
+    const ratioA = candidateA.width / candidateA.height;
+    const ratioB = candidateB.width / candidateB.height;
+    const errorA = Math.abs(ratioA - ratio);
+    const errorB = Math.abs(ratioB - ratio);
+    if (errorA === errorB) {
+      return candidateA.pixels >= candidateB.pixels ? candidateA : candidateB;
+    }
+    return errorA < errorB ? candidateA : candidateB;
   }
-  let width = Math.floor(height * ratio);
-  if (width < 1) {
-    width = 1;
+  if (candidateA) {
+    return candidateA;
   }
-  let usedPixels = width * height;
-  if (usedPixels > pixels) {
-    height = Math.floor(pixels / width);
-    usedPixels = width * height;
+  if (candidateB) {
+    return candidateB;
   }
-  return { width, height, pixels: usedPixels };
+  return { width: 0, height: 0, pixels: 0 };
 };
 
 const updatePreview = (width, height) => {
@@ -141,23 +132,43 @@ const updateDerived = () => {
   const width = parseDimension(widthInput.value);
   const height = parseDimension(heightInput.value);
   const pixels = width > 0 && height > 0 ? width * height : 0;
-  const ratio = Number(ratioSlider.value);
-  const approx = approximateFraction(ratio, 100);
+  const targetRatio = Number(ratioSlider.value);
+  const nextSize = computeNewSize(pixels, targetRatio);
+  const actualRatio =
+    nextSize.width > 0 && nextSize.height > 0
+      ? nextSize.width / nextSize.height
+      : 0;
+  const divisor =
+    nextSize.width > 0 && nextSize.height > 0
+      ? gcd(nextSize.width, nextSize.height)
+      : 0;
+  const ratioNumerator = divisor > 0 ? nextSize.width / divisor : 0;
+  const ratioDenominator = divisor > 0 ? nextSize.height / divisor : 0;
   ratioValue.textContent = formatRatioDisplay(
-    ratio,
-    approx.numerator,
-    approx.denominator
+    actualRatio,
+    ratioNumerator,
+    ratioDenominator
   );
-  const nextSize = computeNewSize(pixels, ratio);
   newWidth.textContent = numberFormat.format(nextSize.width);
   newHeight.textContent = numberFormat.format(nextSize.height);
   newPixels.textContent = numberFormat.format(nextSize.pixels);
   updatePreview(nextSize.width, nextSize.height);
+  if (!ratioSlider.disabled && actualRatio > 0) {
+    const minRatio = Number(ratioSlider.min);
+    const maxRatio = Number(ratioSlider.max);
+    ratioSlider.value = clamp(actualRatio, minRatio, maxRatio).toFixed(6);
+  }
 };
 
 const updateBase = () => {
   const width = parseDimension(widthInput.value);
   const height = parseDimension(heightInput.value);
+  if (width >= DIM_STEP && Number(widthInput.value) !== width) {
+    widthInput.value = width;
+  }
+  if (height >= DIM_STEP && Number(heightInput.value) !== height) {
+    heightInput.value = height;
+  }
   const pixels = width > 0 && height > 0 ? width * height : 0;
   const ratio = height > 0 ? width / height : 0;
   const divisor = width > 0 && height > 0 ? gcd(width, height) : 0;
@@ -184,5 +195,17 @@ heightInput.value = DEFAULT_HEIGHT;
 widthInput.addEventListener("input", updateBase);
 heightInput.addEventListener("input", updateBase);
 ratioSlider.addEventListener("input", updateDerived);
+presetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const ratio = Number(button.dataset.ratio);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return;
+    }
+    const minRatio = Number(ratioSlider.min);
+    const maxRatio = Number(ratioSlider.max);
+    ratioSlider.value = clamp(ratio, minRatio, maxRatio).toFixed(6);
+    updateDerived();
+  });
+});
 
 updateBase();
